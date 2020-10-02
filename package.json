@@ -1,0 +1,23 @@
+{
+  "name": "hometown-parser-2",
+  "version": "1.0.0",
+  "description": "Extract location data from a paragraph",
+  "main": "index.js",
+  "repository": "https://github.com/rendall/hometown-parser-2/",
+  "author": "Rendall <rendall@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "postinstall": "data get https://datahub.io/core/world-cities"
+  },
+  "resolutions": {
+    "graceful-fs": "4.2.3"
+  },
+  "dependencies": {
+    "data-cli": "^0.10.1",
+    "trie": "https://github.com/mikedeboer/trie.git"
+  },
+  "devDependencies": {
+    "typescript": "^4.0.3"
+  }
+}
