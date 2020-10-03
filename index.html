@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Homeland parser</title>
+  <script type="module" src="index.js"></script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      font-size: 1rem;
+    }
+
+    ul {
+      list-style: none;
+      max-width: 47rem;
+      text-align: right;
+      width: fit-content;
+    }
+
+    textarea {
+      height: 6rem;
+      max-width: 50rem;
+      width: calc(100% - 5rem);
+    }
+
+    .progress-display + div {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Hometown Parser</h1>
+    <p></p>
+  <div class="progress-display">
+    <progress id="data-download"></progress>
+    <p>City data is downloading... please wait</p>
+  </div>
+  <div>
+    <textarea id="comment-box"></textarea>
+  </div>
+</body>
+
+</html>
