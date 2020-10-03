@@ -145,7 +145,7 @@ const coalesceData = (data: City[]) => {
 fetchData().then(coalesceData).then(createTrie).then((trie: Trie) => {
   const commentBox: HTMLTextAreaElement = document.querySelector("#comment-box") as HTMLTextAreaElement
   let memo: { [key: string]: any } = {}
-  commentBox.addEventListener("change", onCommentBoxChange(trie, memo))
+  commentBox.addEventListener("keyup", onCommentBoxChange(trie, memo))
 
   const str = commentBox.value
   if (str && str.length) onCommentBoxChange(trie, memo)()

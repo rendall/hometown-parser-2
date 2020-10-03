@@ -106,7 +106,7 @@ const coalesceData = (data) => {
 fetchData().then(coalesceData).then(createTrie).then((trie) => {
     const commentBox = document.querySelector("#comment-box");
     let memo = {};
-    commentBox.addEventListener("change", onCommentBoxChange(trie, memo));
+    commentBox.addEventListener("keyup", onCommentBoxChange(trie, memo));
     const str = commentBox.value;
     if (str && str.length)
         onCommentBoxChange(trie, memo)();
