@@ -33,6 +33,8 @@
 <body>
   <h1>Hometown Parser</h1>
     <p>This project extracts town and city data from natural-language paragraphs. Enter a paragraph below that mentions cities, towns, provinces, states or countries</p>
+    <p>Currently it is <em>expansive</em>, in that it will flag all possible locations with the same name (e.g. entering <em>San Francisco</em> will show all 6 cities with that name around the world). Having an <em>exclusive</em> search could be done without too much modification (e.g. entering <em>San Francisco, Philippines</em> would flag only that city</p>
+
   <div class="progress-display">
     <progress id="data-download"></progress>
     <p>City data is downloading... please wait</p>
