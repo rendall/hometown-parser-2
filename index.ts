@@ -58,8 +58,8 @@ const removeDoubleSpaces = (str: string): string =>
 
 const cleanString = (str: string) =>
   removeDoubleSpaces( str.trim().replace(/[\.\(\)&'’\/]/g, " "))
-    .replace(/[^\w ]/, "")
-    .replace(/,/g, " ")
+    .replace(/[^\w ]/g, "")
+    .replace(/[,\?]/g, " ")
 
 const expandAbbreviation = (word: string) => {
   switch (word) {
@@ -71,8 +71,9 @@ const breakDown = (trie: Trie, str: string, words?: string[], endIndex: number =
 
   if (!words) {
     const val = cleanString(str.toLowerCase())
-    console.log(str, val)
     const expanded = val.split(" ").map(word => expandAbbreviation(word))
+    console.info(`${str} =>
+     ${val}`)
     return breakDown(trie, str, expanded, 0)
   }
 
@@ -80,7 +81,7 @@ const breakDown = (trie: Trie, str: string, words?: string[], endIndex: number =
   if (endIndex > words.length) return breakDown(trie, str, words.slice(1), 1, result)
 
   const potentialCity = words.slice(0, endIndex).join(" ")
-  console.info(potentialCity)
+  // console.info(potentialCity)
 
   const find = trie.find(potentialCity)
 
@@ -94,6 +95,9 @@ const displayInfo = (metas: TrieMeta[]) => {
 
   const newList = document.createElement("ul") as HTMLUListElement
   newList.setAttribute("id", "location-list")
+  const header = document.createElement("li")
+  header.textContent = "Detected locations:"
+  newList.appendChild(header)
 
   const lis = metas.map(info => newList.appendChild(document.createElement("li")))
   lis.forEach((li, i) => li.textContent = `${metas[i].name}${metas[i].hasOwnProperty("subcountry") ? ', ' + metas[i].subcountry : ''}${metas[i].hasOwnProperty("country") ? ', ' + metas[i].country : ''} `)

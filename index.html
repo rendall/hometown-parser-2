@@ -13,12 +13,16 @@
 
     ul {
       list-style: none;
+    }
+
+    ul#location-list {
       max-width: 47rem;
       text-align: right;
       width: fit-content;
     }
 
     textarea {
+      display: block;
       height: 6rem;
       max-width: 50rem;
       width: calc(100% - 5rem);
@@ -31,6 +35,14 @@
 
     .progress-display+div {
       display: none;
+    }
+
+    .examples {
+      display: none;
+    }
+
+    .show-examples-input:checked+.examples {
+      display: unset;
     }
   </style>
 </head>
@@ -54,7 +66,48 @@
   <div>
     <p>Enter a paragraph below that mentions cities, towns, provinces, states or countries</p>
     <textarea id="comment-box"></textarea>
+    <label for="show-examples">Show examples</label>
+    <input type="checkbox" id="show-examples" name="show-examples" class="show-examples-input">
+    <ul class="examples">
+      <li>Possible examples:</li>
+      <li><a href="#">Seatlle and Vancouver, BC.</a></li>
+      <li><a href="#">New York and Paris</a></li>
+      <li><a href="#">West Coast U.S.A./ Canada</a></li>
+      <li><a href="#">Novato, CA - La Mesa, CA - Lincoln, CA</a></li>
+      <li><a href="#">Beijing, Tokyo, Shanghai, Seattle, New York City</a></li>
+      <li><a href="#">Cupertino, in the SF South Bay</a></li>
+      <li><a href="#">Cascadia: Eugene - Portland</a></li>
+      <li><a href="#">New York/ New Jersey</a></li>
+      <li><a href="#">Seattle, Ventura, Ithaca</a></li>
+      <li><a href="#">Petaluma, CA..Bellingham, WA..Calgary, Alberta..Tucson, AZ..Portland & Hillsboro, OR..Bolingbrook,
+          IL..Strongsville, OH..Vancouver, BC..Black Rock City, NV</a></li>
+      <li><a href="#">Palm Springs, Los Angeles, San Francisco</a></li>
+      <li><a href="#">Charlotte, NYC, SF, Seattle, Chicago, NOLA, London, Las Vegas, Philadelphia, etc.</a></li>
+      <li><a href="#">Bay Area/Santa Barbara/Seattle</a></li>
+      <li><a href="#">Nevada City, California</a></li>
+      <li><a href="#">Pequannock, NJ & London England</a></li>
+      <li><a href="#">Issaquah, Washington. Apart of the Greater Seattle Area.</a></li>
+      <li><a href="#">Joshua Tree and San Diego</a></li>
+      <li><a href="#">Taipei, New York, Kaapa, Los Angeles, San Francisco, Wilmington, and Kitty Hawk</a></li>
+    </ul>
   </div>
+  <script>
+    const onAClick = (e) => {
+      const textarea = document.querySelector("textarea#comment-box")
+      const value = e.target.outerText
+      textarea.value = value
+
+      var evt = new KeyboardEvent('keyup')
+      textarea.dispatchEvent(evt);
+
+      const exampleToggle = document.querySelector("input#show-examples")
+      exampleToggle.dispatchEvent(new MouseEvent('click'))
+    }
+
+    const as = Array.from(document.querySelectorAll("ul.examples li a"))
+    as.forEach(a => a.addEventListener("click", onAClick))
+
+  </script>
 </body>
 
 </html>
