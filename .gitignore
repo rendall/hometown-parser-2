@@ -1,3 +1,6 @@
 RAW/
-core/
+core/world-cities/*.*
+core/world-cities/archive/*
+core/world-cities/data/*
 node_modules
+!core/world-cities/data/world-cities_json.json
