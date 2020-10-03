@@ -15,8 +15,11 @@ interface TrieMeta {
   word: string
 }
 
+// const DATA_URL = 'core/world-cities/data/world-cities_json.json'
+const DATA_URL = 'https://raw.githubusercontent.com/rendall/hometown-parser-2/master/core/world-cities/data/world-cities_json.json'
+
 const fetchData = async () => {
-  const response = await fetch('core/world-cities/data/world-cities_json.json')
+  const response = await fetch(DATA_URL)
   const reader = response.body!.getReader()
   const contentLength = response.headers.get('Content-Length')!
   const progressBar: HTMLProgressElement = document.querySelector("#data-download")! as HTMLProgressElement

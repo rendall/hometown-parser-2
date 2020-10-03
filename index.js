@@ -8,8 +8,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Trie } from "./lib/trie.js";
+// const DATA_URL = 'core/world-cities/data/world-cities_json.json'
+const DATA_URL = 'https://raw.githubusercontent.com/rendall/hometown-parser-2/master/core/world-cities/data/world-cities_json.json';
 const fetchData = () => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield fetch('core/world-cities/data/world-cities_json.json');
+    const response = yield fetch(DATA_URL);
     const reader = response.body.getReader();
     const contentLength = response.headers.get('Content-Length');
     const progressBar = document.querySelector("#data-download");
