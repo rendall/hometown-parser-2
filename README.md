@@ -4,7 +4,7 @@ Given any text, can a small program easily identify towns, cities and countries?
 
 ## Extracting location data from text
 
-Consider the sentence *"We left New York City for a weekend in Montreal"*, which mentions two locations: *New York City* and *Montreal* and has several words that do not refer to any location.
+Consider the sentence *"We left New York City for a weekend in Montreal"*  It mentions two locations, *New York City* and *Montreal*, and the 6 other words do not refer to any location.
 
 To a computer, all words are equally meaningless, and there is no reason for a computer to know that *Montreal* refers to a physical place in the world but *weekend* does not. Furthermore, there is some ambiguity in whether the sequences of words *New York City* refers to the city itself and not the *State of New York* followed by a non-location word *city*. Or perhaps that sequence refers to *York, England* or *York, Pennsylvania*, with non-location words *new* and *city* nearby.
 
