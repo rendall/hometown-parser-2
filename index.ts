@@ -68,12 +68,12 @@ const expandAbbreviation = (word: string) => {
 }
 
 interface LocToken {
-  key:string
-  indices:number[]
-  value:TrieMeta[]
+  key: string
+  indices: number[]
+  value: TrieMeta[]
 }
 
-const parseString = (trie: Trie, str: string, words?: string[], startIndex:number = 0, endIndex: number = 1, result: LocToken[] = []): LocToken[] => {
+const parseString = (trie: Trie, str: string, words?: string[], startIndex: number = 0, endIndex: number = 1, result: LocToken[] = []): LocToken[] => {
   if (!words) {
     const val = cleanString(str.toLowerCase())
     const expanded = val.split(" ").map(word => expandAbbreviation(word))
@@ -85,19 +85,121 @@ const parseString = (trie: Trie, str: string, words?: string[], startIndex:numbe
   if (endIndex > words.length) return parseString(trie, str, words, startIndex + 1, startIndex + 2, result)
 
   const potentialCity = words.slice(startIndex, endIndex).join(" ")
-  console.info("considering sequence:", potentialCity, startIndex, endIndex)
+  // console.info("considering sequence:", potentialCity, startIndex, endIndex)
   const find = trie.find(potentialCity)
   const isLocation = find !== null && find.meta && find.meta.length
-  if (isLocation) console.log(`${potentialCity}: `, find.meta)
-  if (isLocation) { 
-    const getIndices = (start:number, end:number, ix:number[] = []):number[] => start === end? ix : getIndices(start + 1, end, [...ix, start])
+  // if (isLocation) console.log(`${potentialCity}: `, find.meta)
+  if (isLocation) {
+    const getIndices = (start: number, end: number, ix: number[] = []): number[] => start === end ? ix : getIndices(start + 1, end, [...ix, start])
 
-    return parseString(trie, str, words, startIndex, endIndex + 1, [...result, {key:potentialCity, indices:getIndices(startIndex,endIndex), value: find.meta}]) }
+    return parseString(trie, str, words, startIndex, endIndex + 1, [...result, { key: potentialCity, indices: getIndices(startIndex, endIndex), value: find.meta }])
+  }
   else return parseString(trie, str, words, startIndex, endIndex + 1, result)
 }
 
-const syntax = (tokens:LocToken[]):TrieMeta[] => {
-  const out = tokens.reduce((acc:TrieMeta[], t) => [...acc, ...t.value], [])
+type SyntaxRule = (tokens: LocToken[]) => LocToken[]
+
+/** This rule will discard a token that is discovered to be
+ * part of a larger token, 
+ * e.g. the "York" part of "New York" and
+ * the "New York" part of "New York City" */
+const takeLargerRule: SyntaxRule = (tokens) => {
+  // ordered from largest to smallest
+  const ordered = tokens.sort((a, b) => b.indices.length - a.indices.length)
+  // console.log({ ordered })
+  // discard those which are entirely subsets of another
+  const largerOnly = ordered.reduce((acc: LocToken[], t: LocToken): LocToken[] => acc.some(a => t.indices.every(i => a.indices.includes(i))) ? acc : [...acc, t], [])
+
+
+  return largerOnly
+}
+
+const isRegion = (t: TrieMeta) => t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry")
+const hasRegion = (loc: LocToken) => loc.value.some(isRegion)
+const greatestIndex = (ix: number[]) => ix[ix.length - 1]
+const lowestIndex = (ix: number[]) => ix[0]
+
+/** There is a Turkish town "Of" 
+ * "in" will expand to "Indiana", 
+ * "West" is probably never "West, Camaroon"
+ * "wa" is probably never "Wa, Ghana" but always "Washington"
+ * Discard such tokens if there are no other relevant tokens
+ */
+const removeConfusingSmallWordsRule: SyntaxRule = (tokens) => {
+  const smallConfusingWords = ["wa", "in", "of", "west"]
+
+  const isSmallConfusing = (t: LocToken) => {
+    if (!smallConfusingWords.includes(t.key)) return false
+    const allRegions = tokens.filter(tok => tok !== t).reduce((acc: TrieMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.subcountry)
+
+    switch (t.key) {
+      case "in":
+       if ( allRegions.includes("Indiana") ) return false
+       else return true
+
+      default:
+        return false
+    }
+  }
+
+  return tokens.filter(t => !isSmallConfusing(t))
+}
+
+/** If there is ambiguity, but an adjacent token has
+ * the region (subcountry) of one of the locations
+ * discard all the others */
+const adjacentRegionRule: SyntaxRule = (tokens) => {
+  const getSubsequent = (a: LocToken) => tokens.find(t => greatestIndex(a.indices) + 1 === lowestIndex(t.indices))
+  const resolveAmbiguity = (t: LocToken) => {
+    const adjacentToken = getSubsequent(t)
+    const regions = adjacentToken && adjacentToken.value.filter(isRegion)
+    const isRegionOf = (loc: LocToken, regionsNames: string[]) => regionsNames.some(name => loc.value.some(v => v.subcountry === name))
+    // The subsequent token does not exist or is not a region, so return it unchanged
+    if (!regions || regions.length === 0) return t
+    const regionNames = regions.map(r => r.name!)
+    const value = isRegionOf(t, regionNames) ? t.value.filter(v => regionNames.includes(v.subcountry!)) : t.value
+    return { ...t, value }
+  }
+  return tokens.map(t => t.value.length > 1 ? resolveAmbiguity(t) : t)
+}
+
+/** If a region token is adjacent to a city token and the
+ * city token has one value with that region, remove the
+ * redundant region token
+ * e.g. San Francisco, California
+ * should not return both *San Francisco, California* and *California*
+ */
+const removeUsedRegionsRule: SyntaxRule = (tokens: LocToken[]) => {
+  const getPreviousToken = (a: LocToken) => tokens.find(t => greatestIndex(t.indices) + 1 === lowestIndex(a.indices))
+  /** Answers true iff t has a region token
+   * and the previous token is a city token
+   * with one value, and that value's region
+   * is the same as that of t */
+  const isUsedRegion = (t: LocToken) => {
+    if (!hasRegion(t)) return false
+    const prev = getPreviousToken(t)
+    if (!prev) return false
+    if (prev.value.length > 1) return false
+    const regionNames = t.value.filter(isRegion).map(t => t.name)
+    const isRegionOf = regionNames.some(rName => prev.value[0].subcountry === rName)
+    return isRegionOf
+  }
+  const filtered = tokens.filter(t => !isUsedRegion(t))
+  return filtered
+}
+
+// These syntax rules will be applied in order
+// each step reducing or altering the LocTokens
+const syntaxRules: SyntaxRule[] = [
+  removeConfusingSmallWordsRule,
+  takeLargerRule,
+  adjacentRegionRule,
+  removeUsedRegionsRule
+]
+
+const syntax = (tokens: LocToken[]): TrieMeta[] => {
+  const appliedRules = syntaxRules.reduce((toks: LocToken[], rule) => rule(toks), tokens)
+  const out = appliedRules.reduce((acc: TrieMeta[], t) => [...acc, ...t.value], [])
   return out
 }
 

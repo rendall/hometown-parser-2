@@ -59,11 +59,10 @@ const parseString = (trie, str, words, startIndex = 0, endIndex = 1, result = []
     if (endIndex > words.length)
         return parseString(trie, str, words, startIndex + 1, startIndex + 2, result);
     const potentialCity = words.slice(startIndex, endIndex).join(" ");
-    console.info("considering sequence:", potentialCity, startIndex, endIndex);
+    // console.info("considering sequence:", potentialCity, startIndex, endIndex)
     const find = trie.find(potentialCity);
     const isLocation = find !== null && find.meta && find.meta.length;
-    if (isLocation)
-        console.log(`${potentialCity}: `, find.meta);
+    // if (isLocation) console.log(`${potentialCity}: `, find.meta)
     if (isLocation) {
         const getIndices = (start, end, ix = []) => start === end ? ix : getIndices(start + 1, end, [...ix, start]);
         return parseString(trie, str, words, startIndex, endIndex + 1, [...result, { key: potentialCity, indices: getIndices(startIndex, endIndex), value: find.meta }]);
@@ -71,8 +70,102 @@ const parseString = (trie, str, words, startIndex = 0, endIndex = 1, result = []
     else
         return parseString(trie, str, words, startIndex, endIndex + 1, result);
 };
+/** This rule will discard a token that is discovered to be
+ * part of a larger token,
+ * e.g. the "York" part of "New York" and
+ * the "New York" part of "New York City" */
+const takeLargerRule = (tokens) => {
+    // ordered from largest to smallest
+    const ordered = tokens.sort((a, b) => b.indices.length - a.indices.length);
+    // console.log({ ordered })
+    // discard those which are entirely subsets of another
+    const largerOnly = ordered.reduce((acc, t) => acc.some(a => t.indices.every(i => a.indices.includes(i))) ? acc : [...acc, t], []);
+    return largerOnly;
+};
+const isRegion = (t) => t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry");
+const hasRegion = (loc) => loc.value.some(isRegion);
+const greatestIndex = (ix) => ix[ix.length - 1];
+const lowestIndex = (ix) => ix[0];
+/** There is a Turkish town "Of"
+ * "in" will expand to "Indiana",
+ * "West" is probably never "West, Camaroon"
+ * "wa" is probably never "Wa, Ghana" but always "Washington"
+ * Discard such tokens if there are no other relevant tokens
+ */
+const removeConfusingSmallWordsRule = (tokens) => {
+    const smallConfusingWords = ["wa", "in", "of", "west"];
+    const isSmallConfusing = (t) => {
+        if (!smallConfusingWords.includes(t.key))
+            return false;
+        const allRegions = tokens.filter(tok => tok !== t).reduce((acc, loc) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.subcountry);
+        switch (t.key) {
+            case "in":
+                if (allRegions.includes("Indiana"))
+                    return false;
+                else
+                    return true;
+            default:
+                return false;
+        }
+    };
+    return tokens.filter(t => !isSmallConfusing(t));
+};
+/** If there is ambiguity, but an adjacent token has
+ * the region (subcountry) of one of the locations
+ * discard all the others */
+const adjacentRegionRule = (tokens) => {
+    const getSubsequent = (a) => tokens.find(t => greatestIndex(a.indices) + 1 === lowestIndex(t.indices));
+    const resolveAmbiguity = (t) => {
+        const adjacentToken = getSubsequent(t);
+        const regions = adjacentToken && adjacentToken.value.filter(isRegion);
+        const isRegionOf = (loc, regionsNames) => regionsNames.some(name => loc.value.some(v => v.subcountry === name));
+        // The subsequent token does not exist or is not a region, so return it unchanged
+        if (!regions || regions.length === 0)
+            return t;
+        const regionNames = regions.map(r => r.name);
+        const value = isRegionOf(t, regionNames) ? t.value.filter(v => regionNames.includes(v.subcountry)) : t.value;
+        return Object.assign(Object.assign({}, t), { value });
+    };
+    return tokens.map(t => t.value.length > 1 ? resolveAmbiguity(t) : t);
+};
+/** If a region token is adjacent to a city token and the
+ * city token has one value with that region, remove the
+ * redundant region token
+ * e.g. San Francisco, California
+ * should not return both *San Francisco, California* and *California*
+ */
+const removeUsedRegionsRule = (tokens) => {
+    const getPreviousToken = (a) => tokens.find(t => greatestIndex(t.indices) + 1 === lowestIndex(a.indices));
+    /** Answers true iff t has a region token
+     * and the previous token is a city token
+     * with one value, and that value's region
+     * is the same as that of t */
+    const isUsedRegion = (t) => {
+        if (!hasRegion(t))
+            return false;
+        const prev = getPreviousToken(t);
+        if (!prev)
+            return false;
+        if (prev.value.length > 1)
+            return false;
+        const regionNames = t.value.filter(isRegion).map(t => t.name);
+        const isRegionOf = regionNames.some(rName => prev.value[0].subcountry === rName);
+        return isRegionOf;
+    };
+    const filtered = tokens.filter(t => !isUsedRegion(t));
+    return filtered;
+};
+// These syntax rules will be applied in order
+// each step reducing or altering the LocTokens
+const syntaxRules = [
+    removeConfusingSmallWordsRule,
+    takeLargerRule,
+    adjacentRegionRule,
+    removeUsedRegionsRule
+];
 const syntax = (tokens) => {
-    const out = tokens.reduce((acc, t) => [...acc, ...t.value], []);
+    const appliedRules = syntaxRules.reduce((toks, rule) => rule(toks), tokens);
+    const out = appliedRules.reduce((acc, t) => [...acc, ...t.value], []);
     return out;
 };
 const displayInfo = (metas) => {
