@@ -1,4 +1,4 @@
-# hometown-parser-2
+# Hometown Parser v2
 
 Given any text, can a small program easily identify towns, cities and countries?
 
