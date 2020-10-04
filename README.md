@@ -4,7 +4,7 @@ Given any text, can a small program easily identify towns, cities and countries?
 
 ## Extracting location data from text
 
-This approach of uses a lookup dictionary to identify which words refer to locations, and context clues to discern which specific location wherever the location is ambiguous
+This approach uses a lookup dictionary to identify which sequences of words in a given text refer to locations, and then uses context clues to discern which specific location wherever the location is ambiguous
 
 See a [working example here](https://rendall.github.io/hometown-parser-2/)
 
