@@ -38,34 +38,42 @@ const fetchData = () => __awaiter(void 0, void 0, void 0, function* () {
     return commits;
 });
 const removeDoubleSpaces = (str) => str.indexOf("  ") >= 0 ? removeDoubleSpaces(str.replace("  ", " ")) : str;
-const cleanString = (str) => removeDoubleSpaces(str.trim().replace(/[\.\(\)&'’\/]/g, " "))
-    .replace(/[^\w ]/g, "")
-    .replace(/[,\?]/g, " ");
+const cleanString = (str) => removeDoubleSpaces(str.trim().replace(/[\(\)&'’\/,\?-]|\.\./g, " "))
+    .replace(/[^\w '\(\),\-\/0123456789ÁÂÄÅÇÉÍÎÐÑÓÖØÚÜßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿĀāăąĆćČčďĐđēėęěğĦĩĪīĭİıĽľŁłńňŌōŎŏőœřŚśŞşŠšŢţťũŪūŬŭůųźŻżŽžƏơưǝșțəʼ̧̱̄̇БЖЗКЛНПРСТавгдежиклмнопрстуцчшјاةعلمنḎḏḐḑḥḨḩḯṬṭẔẕẖạảầẩậắằẵếềệỉịọốồộớờủừỳỹ\–‘’]/g, "");
 const expandAbbreviation = (word) => {
     switch (word) {
         case "usa": return "united states";
         default: return word;
     }
 };
-const breakDown = (trie, str, words, endIndex = 1, result = []) => {
+const parseString = (trie, str, words, startIndex = 0, endIndex = 1, result = []) => {
     if (!words) {
         const val = cleanString(str.toLowerCase());
         const expanded = val.split(" ").map(word => expandAbbreviation(word));
-        console.info(`${str} =>
-     ${val}`);
-        return breakDown(trie, str, expanded, 0);
+        console.clear();
+        console.info(`Input string "${str}" is normalized to "${val}"`);
+        return parseString(trie, str, expanded, startIndex, endIndex);
     }
-    if (words.length === 0)
+    if (startIndex === words.length)
         return result;
     if (endIndex > words.length)
-        return breakDown(trie, str, words.slice(1), 1, result);
-    const potentialCity = words.slice(0, endIndex).join(" ");
-    // console.info(potentialCity)
+        return parseString(trie, str, words, startIndex + 1, startIndex + 2, result);
+    const potentialCity = words.slice(startIndex, endIndex).join(" ");
+    console.info("considering sequence:", potentialCity, startIndex, endIndex);
     const find = trie.find(potentialCity);
-    if (find !== null && find.meta && find.meta.length)
-        return breakDown(trie, str, words, endIndex + 1, [...result, ...find.meta]);
+    const isLocation = find !== null && find.meta && find.meta.length;
+    if (isLocation)
+        console.log(`${potentialCity}: `, find.meta);
+    if (isLocation) {
+        const getIndices = (start, end, ix = []) => start === end ? ix : getIndices(start + 1, end, [...ix, start]);
+        return parseString(trie, str, words, startIndex, endIndex + 1, [...result, { key: potentialCity, indices: getIndices(startIndex, endIndex), value: find.meta }]);
+    }
     else
-        return breakDown(trie, str, words, endIndex + 1, result);
+        return parseString(trie, str, words, startIndex, endIndex + 1, result);
+};
+const syntax = (tokens) => {
+    const out = tokens.reduce((acc, t) => [...acc, ...t.value], []);
+    return out;
 };
 const displayInfo = (metas) => {
     const locationList = document.querySelector("#location-list");
@@ -82,11 +90,12 @@ const displayInfo = (metas) => {
 };
 const onCommentBoxChange = (trie, memo) => () => {
     const commentBox = document.querySelector("#comment-box");
-    const val = commentBox.value.toLowerCase();
-    const metas = breakDown(trie, val);
+    const val = commentBox.value;
+    const tokens = parseString(trie, val);
+    const metas = syntax(tokens);
     displayInfo(metas);
 };
-const createTrie = (locations) => {
+const createLookupDictionary = (locations) => {
     const trie = new Trie();
     locations.forEach(loc => trie.add(loc[0], loc[1]));
     return trie;
@@ -96,277 +105,111 @@ const getAbbreviatedSubcountries = (data) => SUB_COUNTRY_CODES
     .map(([abbr, name]) => [abbr.toLowerCase(), data.find(c => c.subcountry === name)])
     // @ts-ignore
     .map(([name, city]) => [name, { name: city.subcountry, country: city.country }]);
-const coalesceData = (data) => {
-    const cities = data.map(loc => [loc.name.toLowerCase(), loc]);
+const getAbbreviatedCities = (data) => CITY_CODES.map(([abbr, loc]) => [abbr.toLowerCase(), loc.split(", ")]).map(([abbr, loc]) => [abbr, { city: loc[0], region: loc[1] }]).map(([abbr, loc]) => [abbr, data.find(c => c.name === loc.city && c.subcountry === loc.region)]);
+const prepareData = (data) => {
+    const cities = data.map(loc => [cleanString(loc.name.toLowerCase()), loc]);
     const subcountries = data
         .reduce((acc, loc) => acc.findIndex(a => a.country === loc.country && a.subcountry === loc.subcountry) > -1 ? acc : [...acc, { subcountry: loc.subcountry, country: loc.country }], [])
         .filter(sc => sc.subcountry != null)
-        .map(sc => [sc.subcountry.toLowerCase(), { name: sc.subcountry, country: sc.country }]);
+        .map(sc => [cleanString(sc.subcountry.toLowerCase()), { name: sc.subcountry, country: sc.country }]);
     const abbreviatedSubcountries = getAbbreviatedSubcountries(data);
-    const countries = subcountries.reduce((acc, o) => acc.includes(o[1].country) ? acc : [...acc, o[1].country], []).map(c => [c.toLowerCase(), { name: c }]);
-    return [...cities, ...subcountries, ...abbreviatedSubcountries, ...countries];
+    const abbreviatedCities = getAbbreviatedCities(data);
+    const countries = subcountries.reduce((acc, o) => acc.includes(o[1].country) ? acc : [...acc, o[1].country], []).map(c => [cleanString(c.toLowerCase()), { name: c }]);
+    return [...cities, ...abbreviatedCities, ...subcountries, ...abbreviatedSubcountries, ...countries];
 };
-fetchData().then(coalesceData).then(createTrie).then((trie) => {
+const decodeNames = (data) => data.map(c => (Object.assign(Object.assign({}, c), { name: decodeURI(c.name), subcountry: decodeURI(c.subcountry) })));
+/** Generates a string of all non-Ascii characters found in all place-names
+ * Kept here, commented, to be used if there is an update to the datafile
+ * Add it to fetchData below as in the example:
+ * fetchData().then(decodeNames).then(outputUniqueCharacters).then...
+ * Use `allUniqueCharacters` as below in the cleaning regex to *not* strip those characters
+ * i.e: `placename.replace(/[^\w <allUniqueCharacters>]/g, "")` */
+// const outputUniqueCharacters = (data: City[]) => {
+//   const getCharacters = (city: City) => `${city.subcountry.replace(/[A-Za-z ]/g, '')}${city.name.replace(/[A-Za-z, ]/g, '')}`
+//   const allUniqueCharacters = data.map(getCharacters).filter(i => i.length > 0).reduce((acc: string[], i) => [...acc, ...i], []).reduce((uq: string[], char: string) => uq.includes(char) ? uq : [...uq, char], []).sort().join("")
+//   console.log({ allUniqueCharacters })
+//   return data
+//}
+const setupUI = (trie) => {
     const commentBox = document.querySelector("#comment-box");
     let memo = {};
     commentBox.addEventListener("keyup", onCommentBoxChange(trie, memo));
+    // This line is in case there is a default message already in the Textarea comment box
     const str = commentBox.value;
     if (str && str.length)
         onCommentBoxChange(trie, memo)();
-});
+};
+fetchData().then(decodeNames).then(prepareData).then(createLookupDictionary).then(setupUI);
+const CITY_CODES = [
+    ["NYC", "New York City, New York"],
+    ["LA", "Los Angeles, California"],
+    ["NOLA", "New Orleans, Lousiana"],
+    ["SF", "San Francisco, California"]
+];
 /* These are commonly-used sub-country codes */
 const SUB_COUNTRY_CODES = [
-    [
-        "AL",
-        "Alabama"
-    ],
-    [
-        "AK",
-        "Alaska"
-    ],
-    [
-        "AZ",
-        "Arizona"
-    ],
-    [
-        "AR",
-        "Arkansas"
-    ],
-    [
-        "CA",
-        "California"
-    ],
-    [
-        "CO",
-        "Colorado"
-    ],
-    [
-        "CT",
-        "Connecticut"
-    ],
-    [
-        "DE",
-        "Delaware"
-    ],
-    [
-        "DC",
-        "Washington, D.C."
-    ],
-    [
-        "FL",
-        "Florida"
-    ],
-    [
-        "GA",
-        "Georgia"
-    ],
-    [
-        "HI",
-        "Hawaii"
-    ],
-    [
-        "ID",
-        "Idaho"
-    ],
-    [
-        "IL",
-        "Illinois"
-    ],
-    [
-        "IN",
-        "Indiana"
-    ],
-    [
-        "IA",
-        "Iowa"
-    ],
-    [
-        "KS",
-        "Kansas"
-    ],
-    [
-        "KY",
-        "Kentucky"
-    ],
-    [
-        "LA",
-        "Louisiana"
-    ],
-    [
-        "ME",
-        "Maine"
-    ],
-    [
-        "MD",
-        "Maryland"
-    ],
-    [
-        "MA",
-        "Massachusetts"
-    ],
-    [
-        "MI",
-        "Michigan"
-    ],
-    [
-        "MN",
-        "Minnesota"
-    ],
-    [
-        "MS",
-        "Mississippi"
-    ],
-    [
-        "MO",
-        "Missouri"
-    ],
-    [
-        "MT",
-        "Montana"
-    ],
-    [
-        "NE",
-        "Nebraska"
-    ],
-    [
-        "NV",
-        "Nevada"
-    ],
-    [
-        "NH",
-        "New Hampshire"
-    ],
-    [
-        "NJ",
-        "New Jersey"
-    ],
-    [
-        "NM",
-        "New Mexico"
-    ],
-    [
-        "NY",
-        "New York"
-    ],
-    [
-        "NC",
-        "North Carolina"
-    ],
-    [
-        "ND",
-        "North Dakota"
-    ],
-    [
-        "OH",
-        "Ohio"
-    ],
-    [
-        "OK",
-        "Oklahoma"
-    ],
-    [
-        "OR",
-        "Oregon"
-    ],
-    [
-        "PA",
-        "Pennsylvania"
-    ],
-    [
-        "RI",
-        "Rhode Island"
-    ],
-    [
-        "SC",
-        "South Carolina"
-    ],
-    [
-        "SD",
-        "South Dakota"
-    ],
-    [
-        "TN",
-        "Tennessee"
-    ],
-    [
-        "TX",
-        "Texas"
-    ],
-    [
-        "UT",
-        "Utah"
-    ],
-    [
-        "VT",
-        "Vermont"
-    ],
-    [
-        "VA",
-        "Virginia"
-    ],
-    [
-        "WA",
-        "Washington"
-    ],
-    [
-        "WV",
-        "West Virginia"
-    ],
-    [
-        "WI",
-        "Wisconsin"
-    ],
-    [
-        "WY",
-        "Wyoming"
-    ],
-    [
-        "AB",
-        "Alberta"
-    ],
-    [
-        "BC",
-        "British Columbia"
-    ],
-    [
-        "MB",
-        "Manitoba"
-    ],
-    [
-        "NB",
-        "New Brunswick"
-    ],
-    [
-        "NL",
-        "Newfoundland and Labrador"
-    ],
-    [
-        "NF",
-        "Newfoundland and Labrador"
-    ],
-    [
-        "LB",
-        "Newfoundland and Labrador"
-    ],
-    // [ "NU", "Nunavut" ],
-    [
-        "ON",
-        "Ontario"
-    ],
-    [
-        "PE",
-        "Prince Edward Island"
-    ],
-    [
-        "QC",
-        "Quebec"
-    ],
-    [
-        "SK",
-        "Saskatchewan"
-    ],
-    [
-        "YT",
-        "Yukon"
-    ]
+    ["AL", "Alabama"],
+    ["AK", "Alaska"],
+    ["AZ", "Arizona"],
+    ["AR", "Arkansas"],
+    ["CA", "California"],
+    ["CO", "Colorado"],
+    ["CT", "Connecticut"],
+    ["DE", "Delaware"],
+    ["DC", "Washington, D.C."],
+    ["FL", "Florida"],
+    ["GA", "Georgia"],
+    ["HI", "Hawaii"],
+    ["ID", "Idaho"],
+    ["IL", "Illinois"],
+    ["IN", "Indiana"],
+    ["IA", "Iowa"],
+    ["KS", "Kansas"],
+    ["KY", "Kentucky"],
+    ["LA", "Louisiana"],
+    ["ME", "Maine"],
+    ["MD", "Maryland"],
+    ["MA", "Massachusetts"],
+    ["MI", "Michigan"],
+    ["MN", "Minnesota"],
+    ["MS", "Mississippi"],
+    ["MO", "Missouri"],
+    ["MT", "Montana"],
+    ["NE", "Nebraska"],
+    ["NV", "Nevada"],
+    ["NH", "New Hampshire"],
+    ["NJ", "New Jersey"],
+    ["NM", "New Mexico"],
+    ["NY", "New York"],
+    ["NC", "North Carolina"],
+    ["ND", "North Dakota"],
+    ["OH", "Ohio"],
+    ["OK", "Oklahoma"],
+    ["OR", "Oregon"],
+    ["PA", "Pennsylvania"],
+    ["RI", "Rhode Island"],
+    ["SC", "South Carolina"],
+    ["SD", "South Dakota"],
+    ["TN", "Tennessee"],
+    ["TX", "Texas"],
+    ["UT", "Utah"],
+    ["VT", "Vermont"],
+    ["VA", "Virginia"],
+    ["WA", "Washington"],
+    ["WV", "West Virginia"],
+    ["WI", "Wisconsin"],
+    ["WY", "Wyoming"],
+    // [ "NU", "Nunavut" ], // Nunavut does not appear in the datafile though NU is an official designation
+    ["AB", "Alberta"],
+    ["BC", "British Columbia"],
+    ["MB", "Manitoba"],
+    ["NB", "New Brunswick"],
+    ["NL", "Newfoundland and Labrador"],
+    ["NF", "Newfoundland and Labrador"],
+    ["LB", "Newfoundland and Labrador"],
+    ["ON", "Ontario"],
+    ["PE", "Prince Edward Island"],
+    ["QC", "Quebec"],
+    ["SK", "Saskatchewan"],
+    ["YT", "Yukon"]
 ];
