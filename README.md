@@ -88,9 +88,11 @@ In this example, the "sequence of words" consisting of `byumba` (alone) will be 
 
 To speed lookup, the normalized place-names are entered into a *Trie*
 
-### Syntax
+### Syntax analysis
 
-The final stage of the process is to analyze the tokens together and discard unlikely locations. This is a bit more art than science.
+This stage is *currently in development*
+
+The final stage of the process is to analyze the tokens together and discard unlikely locations
 
 For example, given the input text *San Francisco, California*, the parser returns the following locations:
 
@@ -104,8 +106,6 @@ For example, given the input text *San Francisco, California*, the parser return
 * *California*, United States
 
 Syntactical analysis should discard all but *San Francisco, California, United States*
-
-This stage is *currently in development*
 
 Briefly, the approach shall include these assumptions:
 
@@ -122,6 +122,8 @@ Briefly, the approach shall include these assumptions:
 * Without other context, some place-names are more likely
   * The input text `"London"` alone likely refers to *London, England* and not *London, Ontario, Canada*
   * Allow for alternate syntactical weighting: a form for an Ontario business could weight *Canada* above *England* for instance
+
+This is a bit more art than science and relies on procedural trial and error to find the right rules for *good enough*
 
 ## Credit
 
