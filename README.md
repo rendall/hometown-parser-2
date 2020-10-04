@@ -4,59 +4,69 @@ Given any text, can a small program easily identify towns, cities and countries?
 
 ## Extracting location data from text
 
+Consider the sentence *"We left New York City for a weekend in Montreal"*, which mentions two locations: *New York City* and *Montreal* and has several words that do not refer to any location.
+
+To a computer, all words are equally meaningless, and there is no reason for a computer to know that *Montreal* refers to a physical place in the world but *weekend* does not. Furthermore, there is some ambiguity in whether the sequences of words *New York City* refers to the city itself and not the *State of New York* followed by a non-location word *city*. Or perhaps that sequence refers to *York, England* or *York, Pennsylvania*, with non-location words *new* and *city* nearby.
+
+If researchers or data analysts for example wanted to understand something about the locations mentioned in a text, how might they go about it?
+
 This approach uses a lookup dictionary to identify which sequences of words in a given text refer to locations, and then uses context clues to discern which specific location wherever the location is ambiguous
 
 See a [working example here](https://rendall.github.io/hometown-parser-2/)
 
-This project is a [second iteration of a previous project](https://rendall.github.io/hometown-parser/) which took a more procedural, content-neutral approach.
+This project is a [second iteration of a previous project](https://rendall.github.io/hometown-parser/) which took a more procedural, content-neutral approach, but was probably "overtrained on the dataset" so to speak
 
 ## Method
 
-This is a brief overview of the approach used here, which can be understood as an analogy to computer language parsing:
+This method has 3 stages: *lexing*, which prepares and normalizes text; *parsing*, which identifies meaningful units of text; and *applying syntactical rules*, which resolves any ambiguities
 
 ### Lexer
 
-Incoming text is normalized and cleaned, stripped of all characters that do not appear in world location names. Double spaces are replaced by single spaces.
+Incoming text is normalized and cleaned, stripped of all characters that do not appear in world location names, double spaces replaced by single spaces and so forth.
 
-These are all of the 208 non-Ascii characters that appear collectively in all place names in the data; which is to say, there are place names in the data that contain one or more of these characters:
+These are all of the 208 non-Latin characters that appear collectively in all place names in the data; which is to say, there are place names in the data that contain one or more of these characters:
 
 `'(),-./0123456789ÁÂÄÅÇÉÍÎÐÑÓÖØÚÜßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ`
 `ĀāăąĆćČčďĐđēėęěğĦĩĪīĭİıĽľŁłńňŌōŎŏőœřŚśŞşŠšŢţťũŪūŬŭůųźŻżŽžƏơưǝșț`
 `əʼ̧̱̄̇БЖЗКЛНПРСТавгдежиклмнопрстуцчшјاةعلمنḎḏḐḑḥḨḩḯṬṭẔẕẖạảầẩậắằẵếềệ`
 `ỉịọốồộớờủừỳỹ–‘’`
 
-*e.g. The name for location `{ "name": "Zürich (Kreis 2) / Wollishofen", "subcountry": "Zurich", "country": "Switzerland", "geonameid": 6295495 }` contains the characters `()2ü`*
+*e.g. The name for location `{ "name": "Zürich (Kreis 2) / Wollishofen", "subcountry": "Zurich", "country": "Switzerland", "geonameid": 6295495 }` contains the non-Latin characters `(`, `)`, `2` and `ü`*
 
-Any non-Ascii character that does *not* appear in the string above can be safely removed (e.g. `?` or `~`)
+Any non-Latin character that does *not* appear in the string above can be safely removed (e.g. `?` or `~`)
 
 Currently, for the sake of normalization/hashing, the entire text is converted to lower case, which may very well introduce subtle localization bugs into the process. In a future iteration, this should be investigated, but for now, as long as incoming text is normalized the *same way* as the key, it should be *good enough*
 
 ### Parser
 
-The parsing stage checks successive sequences of words against the dictionary, and understands only successful lookups as *tokens*, discarding the rest
+The parsing stage checks *successive sequences of words* against the dictionary, and understands only successful lookups as *location tokens*, discarding the rest
 
-#### Successive sequences
+#### Successive sequences of words
 
-The algorithm to discover all sequences is to iteratively remove the last word in the text until the first word is alone, and then to start again with the first word removed.
-
-Consider a text with words in sequence: `a b c d e`. `a` may be a non-location word, while the sequences `b`, `b c`, `b c d`, `c d` and `e` may each be found in the dictionary. It is necessary to examine them all.
-
-Two simplifying assumptions are made:
+Consider a sequence of words `a b c d e`. In analyzing this text for location data, two simplifying assumptions are made:
 
 * Location names that comprise several words will always be adjacent (e.g. it's not necessary to consider whether `a c` is a location name)
 * Location names will always appear in order (e.g. it's not necessary to consider `b a` as a location name)
 
-Visually:
-`a`
-`a b`
-`a b c`
-`a b c d`
-`a b c d e`
-`b`
-`b c`
-`b c d`
-`b c d e`
-... and so on
+From this, all possible sequences of words are generated. Starting with the first word alone, successively add subsequent words, considering each in turn, until the end of the text is reached. Then the first word is removed from the text, and the process begins anew. After the last word of the sequence is considered alone, the process completes.
+
+The sequence of words `a b c d e` would be checked against the dictionary in this order:
+
+* `a`
+* `a b`
+* `a b c`
+* `a b c d`
+* `a b c d e`
+* `b`
+* `b c`
+* `b c d`
+* `b c d e`
+... and so on to:
+* `d`
+* `d e`
+* `e`
+
+In this way, every multi-word sequence that has a dictionary entry is identified
 
 #### Lookup
 
@@ -74,7 +84,7 @@ This raw data must be processed and converted into a lookup dictionary, wherein 
 
 `key: byumba, value: <as above>`
 
-In this example, a "sequence of words" consisting of `byumba` (alone) will be considered as a "token" of *Byumba* the place
+In this example, the "sequence of words" consisting of `byumba` (alone) will be considered to be a key of the *token* of *Byumba*, the place
 
 To speed lookup, the normalized place-names are entered into a *Trie*
 
