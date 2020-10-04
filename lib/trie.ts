@@ -48,7 +48,7 @@
  * @constructor
  */
 
- interface Meta {
+ export interface Meta {
      [key:string]:any
      word?:string
  }
