@@ -11,14 +11,11 @@
       font-size: 1rem;
     }
 
-    ul {
-      list-style: none;
-    }
-
     ul#location-list {
       max-width: 47rem;
       text-align: right;
       width: fit-content;
+      list-style: none;
     }
 
     textarea {
@@ -41,7 +38,11 @@
       display: none;
     }
 
-    .show-examples-input:checked+.examples {
+    .examples li.hide {
+      display: none;
+    }
+
+    .toggle-examples-input:checked+.examples {
       display: unset;
     }
   </style>
@@ -66,11 +67,11 @@
   <div>
     <p>Enter a paragraph below that mentions cities, towns, provinces, states or countries</p>
     <textarea id="comment-box"></textarea>
-    <label for="show-examples">Show examples</label>
-    <input type="checkbox" id="show-examples" name="show-examples" class="show-examples-input">
+    <label for="toggle-examples">Show examples</label>
+    <input type="checkbox" id="toggle-examples" name="toggle-examples" class="toggle-examples-input">
     <ul class="examples">
-      <li>Possible examples:</li>
-      <li><a href="#">Seatlle and Vancouver, BC.</a></li>
+      <li>Here are examples of the kind of paragraph that might be entered above</li>
+      <li><a href="#">Seattle and Vancouver, BC.</a></li>
       <li><a href="#">New York and Paris</a></li>
       <li><a href="#">West Coast U.S.A./ Canada</a></li>
       <li><a href="#">Novato, CA - La Mesa, CA - Lincoln, CA</a></li>
@@ -92,6 +93,7 @@
     </ul>
   </div>
   <script>
+
     const onAClick = (e) => {
       const textarea = document.querySelector("textarea#comment-box")
       const value = e.target.outerText
@@ -100,14 +102,24 @@
       var evt = new KeyboardEvent('keyup')
       textarea.dispatchEvent(evt);
 
-      const exampleToggle = document.querySelector("input#show-examples")
+      const exampleToggle = document.querySelector("input#toggle-examples")
       exampleToggle.dispatchEvent(new MouseEvent('click'))
+
+      showRandom3()
+    }
+
+    const showRandom3 = () => {
+      const lis = Array.from(document.querySelectorAll("ul.examples li"))
+      const pickRandom3 = (arr = []) => arr.length === 3 ? arr : pickRandom3([...arr, Math.floor(Math.random() * lis.length)])
+      const random3 = pickRandom3()
+      lis.forEach(a => a.classList.add("hide"))
+      lis.filter((a,i) => random3.includes(i)).forEach(a => a.classList.remove("hide"))
     }
 
     const as = Array.from(document.querySelectorAll("ul.examples li a"))
     as.forEach(a => a.addEventListener("click", onAClick))
 
+    showRandom3()
   </script>
 </body>
-
 </html>
