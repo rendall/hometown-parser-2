@@ -14,7 +14,7 @@ This approach uses a lookup dictionary to identify which sequences of words in a
 
 See a [working example here](https://rendall.github.io/hometown-parser-2/)
 
-This project is a [second iteration of a previous project](https://rendall.github.io/hometown-parser/) which took a more procedural, content-neutral approach, but was probably "overtrained on the dataset" so to speak
+This project is a [second iteration of a previous project](https://rendall.github.io/hometown-parser/)
 
 ## Method
 
