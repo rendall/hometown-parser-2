@@ -1,12 +1,12 @@
-# hometown-parser-2
+# Hometown Parser v2
 
 Given any text, can a small program easily identify towns, cities and countries?
 
 ## Extracting location data from text
 
-Consider the sentence *"We left New York City for a weekend in Montreal"*, which mentions two locations: *New York City* and *Montreal* and has several words that do not refer to any location.
+Consider the sentence *"We left New York City for a weekend in Montreal."*  It mentions two locations, *New York City* and *Montreal*, and the 6 other words do not refer to any location. Further, it contains a `.` which might naively be considered a part of the word *Montreal*
 
-To a computer, all words are equally meaningless, and there is no reason for a computer to know that *Montreal* refers to a physical place in the world but *weekend* does not. Furthermore, there is some ambiguity in whether the sequences of words *New York City* refers to the city itself and not the *State of New York* followed by a non-location word *city*. Or perhaps that sequence refers to *York, England* or *York, Pennsylvania*, with non-location words *new* and *city* nearby.
+To a computer, all words are equally meaningless, and there is no reason for a computer to know that *Montreal* refers to a physical place in the world but *weekend* does not. Furthermore, there is some ambiguity in whether the sequences of words *New York City* refers to the city itself and not the *State of New York* followed by a non-location word *city*. Or perhaps that sequence refers to *York, England* or *York, Pennsylvania*, with the adjacent words *new* and *city* having no particular relevence to *York*
 
 If researchers or data analysts for example wanted to understand something about the locations mentioned in a text, how might they go about it?
 
@@ -14,7 +14,7 @@ This approach uses a lookup dictionary to identify which sequences of words in a
 
 See a [working example here](https://rendall.github.io/hometown-parser-2/)
 
-This project is a [second iteration of a previous project](https://rendall.github.io/hometown-parser/) which took a more procedural, content-neutral approach, but was probably "overtrained on the dataset" so to speak
+This project is a [second iteration of a previous project](https://rendall.github.io/hometown-parser/)
 
 ## Method
 
