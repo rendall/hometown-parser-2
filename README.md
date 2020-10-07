@@ -2,6 +2,8 @@
 
 Given any text, can a small program easily identify towns, cities and countries?
 
+[Let's see!](https://rendall.github.io/hometown-parser-2/) <https://rendall.github.io/hometown-parser-2/>
+
 ## Extracting location data from text
 
 Consider the sentence *"We left New York City for a weekend in Montreal."*  It mentions two locations, *New York City* and *Montreal*, and the 6 other words do not refer to any location. Further, it contains a `.` which might naively be considered a part of the word *Montreal*
