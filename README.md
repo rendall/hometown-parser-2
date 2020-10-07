@@ -2,7 +2,9 @@
 
 Given any text, can a small program easily identify towns, cities and countries?
 
-[Let's see!](https://rendall.github.io/hometown-parser-2/) <https://rendall.github.io/hometown-parser-2/>
+[Let's see!](https://rendall.github.io/hometown-parser-2/) 
+
+<https://rendall.github.io/hometown-parser-2/>
 
 ## Extracting location data from text
 
