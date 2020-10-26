@@ -129,21 +129,39 @@ const lowestIndex = (ix: number[]) => ix[0]
 
 /** There is a Turkish town "Of" 
  * "in" will expand to "Indiana", 
- * "West" is probably never "West, Camaroon"
+ * "West" is probably never "West, Cameroon"
  * "wa" is probably never "Wa, Ghana" but always "Washington"
  * Discard such tokens if there are no other relevant tokens
  */
 const removeConfusingSmallWordsRule: SyntaxRule = (tokens) => {
-  const smallConfusingWords = ["wa", "in", "of", "west"]
+  const smallConfusingWords = ["wa", "in", "of", "west", "east"]
 
+  // returns 'true' if t.index *is* a small, confusing word like "of"
+  // and 'false' if t.index is a region, like "Of, Trabazon, Turkey"
   const isSmallConfusing = (t: LocToken) => {
     if (!smallConfusingWords.includes(t.key)) return false
-    const allRegions = tokens.filter(tok => tok !== t).reduce((acc: LocationMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.name)
+    // all tokens except for 't'
+    const excludeTokens = tokens.filter( to => to.key !== t.key)
+    const allRegions = excludeTokens.filter(tok => tok !== t).reduce((acc: LocationMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.name)
+    const allCountries = excludeTokens.filter(tok => tok !== t).reduce((acc: LocationMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isCountry).map(v => v.name)
 
     switch (t.key) {
       case "in":
        if ( allRegions.includes("Indiana") ) return false
        else return true
+
+      case "of": 
+        const isTurkey = allCountries.includes("Turkey") || allRegions.includes("Trabzon")
+        return !isTurkey
+
+      case "wa":
+        const isGhana = allCountries.includes("Ghana")
+        return !isGhana
+
+      case "east":
+      case "west":
+        const isCameroon = allCountries.includes("Cameroon")
+        return !isCameroon
 
       default:
         return false
