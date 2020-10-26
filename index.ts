@@ -7,12 +7,21 @@ interface City {
   subcountry: string
 }
 
-interface TrieMeta extends Meta {
+type Region = Pick<City, "name" | "country">
+type Country = Pick<Region, "name">
+
+interface LocationMeta extends Meta {
   country?: string
   geonameid?: number
-  name?: string
+  name: string
   subcountry?: string
   word?: string
+}
+
+interface LocToken {
+  key: string
+  indices: number[]
+  value: LocationMeta[]
 }
 
 const DATA_URL = 'core/world-cities/data/world-cities_json.json'
@@ -67,31 +76,26 @@ const expandAbbreviation = (word: string) => {
   }
 }
 
-interface LocToken {
-  key: string
-  indices: number[]
-  value: TrieMeta[]
-}
+
 
 const parseString = (trie: Trie, str: string, words?: string[], startIndex: number = 0, endIndex: number = 1, result: LocToken[] = []): LocToken[] => {
   if (!words) {
     const val = cleanString(str.toLowerCase())
     const expanded = val.split(" ").map(word => expandAbbreviation(word))
-    console.info(`Input string "${str}" is normalized to "${val}"`)
     return parseString(trie, str, expanded, startIndex, endIndex)
   }
   if (startIndex === words.length) return result
   if (endIndex > words.length) return parseString(trie, str, words, startIndex + 1, startIndex + 2, result)
 
   const potentialCity = words.slice(startIndex, endIndex).join(" ")
-  // console.info("considering sequence:", potentialCity, startIndex, endIndex)
   const find = trie.find(potentialCity)
   const isLocation = find !== null && find.meta && find.meta.length
-  // if (isLocation) console.log(`${potentialCity}: `, find.meta)
   if (isLocation) {
     const getIndices = (start: number, end: number, ix: number[] = []): number[] => start === end ? ix : getIndices(start + 1, end, [...ix, start])
 
-    return parseString(trie, str, words, startIndex, endIndex + 1, [...result, { key: potentialCity, indices: getIndices(startIndex, endIndex), value: find.meta }])
+    const value = find.meta as LocationMeta[]
+
+    return parseString(trie, str, words, startIndex, endIndex + 1, [...result, { key: potentialCity, indices: getIndices(startIndex, endIndex), value }])
   }
   else return parseString(trie, str, words, startIndex, endIndex + 1, result)
 }
@@ -105,7 +109,6 @@ type SyntaxRule = (tokens: LocToken[]) => LocToken[]
 const takeLargerRule: SyntaxRule = (tokens) => {
   // ordered from largest to smallest
   const ordered = tokens.sort((a, b) => b.indices.length - a.indices.length)
-  // console.log({ ordered })
   // discard those which are entirely subsets of another
   const largerOnly = ordered.reduce((acc: LocToken[], t: LocToken): LocToken[] => acc.some(a => t.indices.every(i => a.indices.includes(i))) ? acc : [...acc, t], [])
 
@@ -113,7 +116,13 @@ const takeLargerRule: SyntaxRule = (tokens) => {
   return largerOnly
 }
 
-const isRegion = (t: TrieMeta) => t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry")
+const isRegion = (t: LocationMeta): t is Region => t.hasOwnProperty("name") && t.name !== undefined && t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry")
+const isCountry = (t: LocationMeta): boolean  => t.hasOwnProperty("name") && t.name !== undefined && !t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry")
+const isIn = (t:LocationMeta, region:{name:string}) => t.country === region.name || t.subcountry === region.name
+
+const isEqualLocation = (a:LocationMeta, b:LocationMeta) => a.name === b.name && a.subcountry === b.subcountry && a.country === b.country
+const toUniqueLocation = (uq:LocationMeta[], curr:LocationMeta, currIndex:number, arr:LocationMeta[]):(LocationMeta | Country | Region)[] => uq.some( u => isEqualLocation(u, curr))? uq : [...uq, curr]
+
 const hasRegion = (loc: LocToken) => loc.value.some(isRegion)
 const greatestIndex = (ix: number[]) => ix[ix.length - 1]
 const lowestIndex = (ix: number[]) => ix[0]
@@ -129,7 +138,7 @@ const removeConfusingSmallWordsRule: SyntaxRule = (tokens) => {
 
   const isSmallConfusing = (t: LocToken) => {
     if (!smallConfusingWords.includes(t.key)) return false
-    const allRegions = tokens.filter(tok => tok !== t).reduce((acc: TrieMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.subcountry)
+    const allRegions = tokens.filter(tok => tok !== t).reduce((acc: LocationMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.name)
 
     switch (t.key) {
       case "in":
@@ -162,6 +171,40 @@ const adjacentRegionRule: SyntaxRule = (tokens) => {
   return tokens.map(t => t.value.length > 1 ? resolveAmbiguity(t) : t)
 }
 
+/** If there is ambiguity, but one of the *other* tokens
+ * has a region or country that resolves the amiguity, use it
+ * e.g."Charlotte, NYC, SF, Seattle, Chicago, NOLA, London, Las Vegas, Philadelphia, etc."
+ * would resolve to these tokens (among others)
+ *  * Nola, Sangha-Mbaéré, Central African Republic
+ *  * Nola, Campania, Italy
+ *  * New Orleans, Louisiana, United States 
+ * Given the context, New Orleans Lousiana is the correct one, as given by the "United States"
+ * context of most of the others
+ */
+const useContextRule: SyntaxRule = (tokens:LocToken[]) => {
+  const ambiguous = tokens.filter(t => t.value.length > 1)
+  const unambiguous = tokens.filter(t => t.value.length === 1)
+
+  const unambiguousMetas = unambiguous.map( t => t.value[0]) as LocationMeta[]
+  //@ts-expect-error - seems that the TypeScript definition for .reduce is incorrect
+  const unambiguousRegions:Region[] = unambiguousMetas.filter( m => !isCountry(m)).map( m => isRegion(m)? m : ({name:m.subcountry, country:m.country})).reduce(toUniqueLocation, [])
+  //@ts-expect-error - seems that the TypeScript definition for .reduce is incorrect
+  const unambiguousCountries:Country[] = unambiguousMetas.map( m => isCountry(m)? m : ({name:m.country})).reduce(toUniqueLocation, [])
+
+  const resolveAmbiguity = (locations:LocationMeta[]) => {
+    // These are locations that are definitely in one of the unambiguous countries
+    const filteredByCountry = locations.filter( loc => unambiguousCountries.some( country => isIn(loc, country)))
+    if (filteredByCountry.length === 1) return filteredByCountry
+    const filteredByRegion = locations.filter( loc => unambiguousRegions.some( region => isIn(loc, region)))
+    return filteredByRegion.length === 0 ? filteredByCountry.length === 0 ? locations : filteredByCountry : filteredByRegion
+  }
+
+  const resolved = ambiguous.map(token => ({ ...token, value: resolveAmbiguity(token.value) }))
+
+  return [...unambiguous, ...resolved]
+}
+
+
 /** If a region token is adjacent to a city token and the
  * city token has one value with that region, remove the
  * redundant region token
@@ -193,16 +236,17 @@ const syntaxRules: SyntaxRule[] = [
   removeConfusingSmallWordsRule,
   takeLargerRule,
   adjacentRegionRule,
-  removeUsedRegionsRule
+  removeUsedRegionsRule,
+  useContextRule
 ]
 
-const syntax = (tokens: LocToken[]): TrieMeta[] => {
+const syntax = (tokens: LocToken[]): LocationMeta[] => {
   const appliedRules = syntaxRules.reduce((toks: LocToken[], rule) => rule(toks), tokens)
-  const out = appliedRules.reduce((acc: TrieMeta[], t) => [...acc, ...t.value], [])
+  const out = appliedRules.reduce((acc: LocationMeta[], t) => [...acc, ...t.value], [])
   return out
 }
 
-const displayInfo = (metas: TrieMeta[]) => {
+const displayInfo = (metas: LocationMeta[]) => {
   const locationList = document.querySelector("#location-list") as HTMLUListElement
   if (locationList) locationList.remove()
   const newList = document.createElement("ul") as HTMLUListElement
@@ -219,7 +263,7 @@ const onCommentBoxChange = (trie: Trie, memo: { [key: string]: any }) => () => {
   const commentBox: HTMLTextAreaElement = document.querySelector("#comment-box") as HTMLTextAreaElement
   const val = commentBox.value
   const tokens: LocToken[] = parseString(trie, val)
-  const metas: TrieMeta[] = syntax(tokens)
+  const metas: LocationMeta[] = syntax(tokens)
   displayInfo(metas)
 }
 
@@ -261,7 +305,6 @@ const decodeNames = (data: City[]) => data.map(c => ({ ...c, name: decodeURI(c.n
 // const outputUniqueCharacters = (data: City[]) => {
 //   const getCharacters = (city: City) => `${city.subcountry.replace(/[A-Za-z ]/g, '')}${city.name.replace(/[A-Za-z, ]/g, '')}`
 //   const allUniqueCharacters = data.map(getCharacters).filter(i => i.length > 0).reduce((acc: string[], i) => [...acc, ...i], []).reduce((uq: string[], char: string) => uq.includes(char) ? uq : [...uq, char], []).sort().join("")
-//   console.log({ allUniqueCharacters })
 //   return data
 //}
 const setupUI = (trie: Trie) => {
