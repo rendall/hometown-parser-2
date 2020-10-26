@@ -50,8 +50,6 @@ const parseString = (trie, str, words, startIndex = 0, endIndex = 1, result = []
     if (!words) {
         const val = cleanString(str.toLowerCase());
         const expanded = val.split(" ").map(word => expandAbbreviation(word));
-        console.clear();
-        console.info(`Input string "${str}" is normalized to "${val}"`);
         return parseString(trie, str, expanded, startIndex, endIndex);
     }
     if (startIndex === words.length)
@@ -59,13 +57,12 @@ const parseString = (trie, str, words, startIndex = 0, endIndex = 1, result = []
     if (endIndex > words.length)
         return parseString(trie, str, words, startIndex + 1, startIndex + 2, result);
     const potentialCity = words.slice(startIndex, endIndex).join(" ");
-    // console.info("considering sequence:", potentialCity, startIndex, endIndex)
     const find = trie.find(potentialCity);
     const isLocation = find !== null && find.meta && find.meta.length;
-    // if (isLocation) console.log(`${potentialCity}: `, find.meta)
     if (isLocation) {
         const getIndices = (start, end, ix = []) => start === end ? ix : getIndices(start + 1, end, [...ix, start]);
-        return parseString(trie, str, words, startIndex, endIndex + 1, [...result, { key: potentialCity, indices: getIndices(startIndex, endIndex), value: find.meta }]);
+        const value = find.meta;
+        return parseString(trie, str, words, startIndex, endIndex + 1, [...result, { key: potentialCity, indices: getIndices(startIndex, endIndex), value }]);
     }
     else
         return parseString(trie, str, words, startIndex, endIndex + 1, result);
@@ -77,33 +74,50 @@ const parseString = (trie, str, words, startIndex = 0, endIndex = 1, result = []
 const takeLargerRule = (tokens) => {
     // ordered from largest to smallest
     const ordered = tokens.sort((a, b) => b.indices.length - a.indices.length);
-    // console.log({ ordered })
     // discard those which are entirely subsets of another
     const largerOnly = ordered.reduce((acc, t) => acc.some(a => t.indices.every(i => a.indices.includes(i))) ? acc : [...acc, t], []);
     return largerOnly;
 };
-const isRegion = (t) => t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry");
+const isRegion = (t) => t.hasOwnProperty("name") && t.name !== undefined && t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry");
+const isCountry = (t) => t.hasOwnProperty("name") && t.name !== undefined && !t.hasOwnProperty("country") && !t.hasOwnProperty("subcountry");
+const isIn = (t, region) => t.country === region.name || t.subcountry === region.name;
+const isEqualLocation = (a, b) => a.name === b.name && a.subcountry === b.subcountry && a.country === b.country;
+const toUniqueLocation = (uq, curr, currIndex, arr) => uq.some(u => isEqualLocation(u, curr)) ? uq : [...uq, curr];
 const hasRegion = (loc) => loc.value.some(isRegion);
 const greatestIndex = (ix) => ix[ix.length - 1];
 const lowestIndex = (ix) => ix[0];
 /** There is a Turkish town "Of"
  * "in" will expand to "Indiana",
- * "West" is probably never "West, Camaroon"
+ * "West" is probably never "West, Cameroon"
  * "wa" is probably never "Wa, Ghana" but always "Washington"
  * Discard such tokens if there are no other relevant tokens
  */
 const removeConfusingSmallWordsRule = (tokens) => {
-    const smallConfusingWords = ["wa", "in", "of", "west"];
+    const smallConfusingWords = ["west", "east"];
+    // returns 'true' if t.index *is* a small, confusing word like "of"
+    // and 'false' if t.index is a region, like "Of, Trabzon, Turkey"
     const isSmallConfusing = (t) => {
-        if (!smallConfusingWords.includes(t.key))
+        if (t.key.length > 3 && !smallConfusingWords.includes(t.key))
             return false;
-        const allRegions = tokens.filter(tok => tok !== t).reduce((acc, loc) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.subcountry);
+        // all tokens except for 't'
+        const excludeTokens = tokens.filter(to => to.key !== t.key);
+        const allRegions = excludeTokens.filter(tok => tok !== t).reduce((acc, loc) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.name);
+        const allCountries = excludeTokens.filter(tok => tok !== t).reduce((acc, loc) => [...acc, ...loc.value], []).filter(isCountry).map(v => v.name);
         switch (t.key) {
-            case "in":
-                if (allRegions.includes("Indiana"))
-                    return false;
-                else
-                    return true;
+            case "in": return !allRegions.includes("Indiana");
+            case "or": return !allRegions.includes("Oregon");
+            case "of":
+                const isTurkey = allCountries.includes("Turkey") || allRegions.includes("Trabzon");
+                return !isTurkey;
+            // This is wrong. It will *remove* wa, when it should only remove "Wa, Ghana"
+            // It should be in a different rule
+            case "wa":
+                const isGhana = allCountries.includes("Ghana") || allRegions.includes("Upper West");
+                return !isGhana;
+            case "east":
+            case "west":
+                const isCameroon = allCountries.includes("Cameroon");
+                return !isCameroon;
             default:
                 return false;
         }
@@ -127,6 +141,35 @@ const adjacentRegionRule = (tokens) => {
         return Object.assign(Object.assign({}, t), { value });
     };
     return tokens.map(t => t.value.length > 1 ? resolveAmbiguity(t) : t);
+};
+/** If there is ambiguity, but one of the *other* tokens
+ * has a region or country that resolves the amiguity, use it
+ * e.g."Charlotte, NYC, SF, Seattle, Chicago, NOLA, London, Las Vegas, Philadelphia, etc."
+ * would resolve to these tokens (among others)
+ *  * Nola, Sangha-Mbaéré, Central African Republic
+ *  * Nola, Campania, Italy
+ *  * New Orleans, Louisiana, United States
+ * Given the context, New Orleans Lousiana is the correct one, as given by the "United States"
+ * context of most of the others
+ */
+const useContextRule = (tokens) => {
+    const ambiguous = tokens.filter(t => t.value.length > 1);
+    const unambiguous = tokens.filter(t => t.value.length === 1);
+    const unambiguousMetas = unambiguous.map(t => t.value[0]);
+    //@ts-expect-error - seems that the TypeScript definition for .reduce is incorrect
+    const unambiguousRegions = unambiguousMetas.filter(m => !isCountry(m)).map(m => isRegion(m) ? m : ({ name: m.subcountry, country: m.country })).reduce(toUniqueLocation, []);
+    //@ts-expect-error - seems that the TypeScript definition for .reduce is incorrect
+    const unambiguousCountries = unambiguousMetas.map(m => isCountry(m) ? m : ({ name: m.country })).reduce(toUniqueLocation, []);
+    const resolveAmbiguity = (locations) => {
+        // These are locations that are definitely in one of the unambiguous countries
+        const filteredByCountry = locations.filter(loc => unambiguousCountries.some(country => isIn(loc, country)));
+        if (filteredByCountry.length === 1)
+            return filteredByCountry;
+        const filteredByRegion = locations.filter(loc => unambiguousRegions.some(region => isIn(loc, region)));
+        return filteredByRegion.length === 0 ? filteredByCountry.length === 0 ? locations : filteredByCountry : filteredByRegion;
+    };
+    const resolved = ambiguous.map(token => (Object.assign(Object.assign({}, token), { value: resolveAmbiguity(token.value) })));
+    return [...unambiguous, ...resolved];
 };
 /** If a region token is adjacent to a city token and the
  * city token has one value with that region, remove the
@@ -161,7 +204,8 @@ const syntaxRules = [
     removeConfusingSmallWordsRule,
     takeLargerRule,
     adjacentRegionRule,
-    removeUsedRegionsRule
+    removeUsedRegionsRule,
+    useContextRule
 ];
 const syntax = (tokens) => {
     const appliedRules = syntaxRules.reduce((toks, rule) => rule(toks), tokens);
@@ -169,13 +213,10 @@ const syntax = (tokens) => {
     return out;
 };
 const displayInfo = (metas) => {
-    const locationList = document.querySelector("#location-list");
-    if (locationList)
-        locationList.remove();
     const newList = document.createElement("ul");
     newList.setAttribute("id", "location-list");
     const header = document.createElement("li");
-    header.textContent = "Detected locations:";
+    header.textContent = metas.length === 0 ? "No locations detected" : "Detected locations:";
     newList.appendChild(header);
     const lis = metas.map(info => newList.appendChild(document.createElement("li")));
     lis.forEach((li, i) => li.textContent = `${metas[i].name}${metas[i].hasOwnProperty("subcountry") ? ', ' + metas[i].subcountry : ''}${metas[i].hasOwnProperty("country") ? ', ' + metas[i].country : ''} `);
@@ -183,7 +224,12 @@ const displayInfo = (metas) => {
 };
 const onCommentBoxChange = (trie, memo) => () => {
     const commentBox = document.querySelector("#comment-box");
+    const locationList = document.querySelector("#location-list");
+    if (locationList)
+        locationList.remove();
     const val = commentBox.value;
+    if (val.trim() === "")
+        return;
     const tokens = parseString(trie, val);
     const metas = syntax(tokens);
     displayInfo(metas);
@@ -220,13 +266,19 @@ const decodeNames = (data) => data.map(c => (Object.assign(Object.assign({}, c),
 // const outputUniqueCharacters = (data: City[]) => {
 //   const getCharacters = (city: City) => `${city.subcountry.replace(/[A-Za-z ]/g, '')}${city.name.replace(/[A-Za-z, ]/g, '')}`
 //   const allUniqueCharacters = data.map(getCharacters).filter(i => i.length > 0).reduce((acc: string[], i) => [...acc, ...i], []).reduce((uq: string[], char: string) => uq.includes(char) ? uq : [...uq, char], []).sort().join("")
-//   console.log({ allUniqueCharacters })
 //   return data
 //}
 const setupUI = (trie) => {
     const commentBox = document.querySelector("#comment-box");
+    const commentButton = document.querySelector("#comment-button");
     let memo = {};
-    commentBox.addEventListener("keyup", onCommentBoxChange(trie, memo));
+    let tOut;
+    const debounce = (ms = 500) => () => {
+        clearTimeout(tOut);
+        tOut = setTimeout(onCommentBoxChange(trie, memo), ms);
+    };
+    commentButton.addEventListener("click", debounce(0));
+    commentBox.addEventListener("keyup", debounce(500));
     // This line is in case there is a default message already in the Textarea comment box
     const str = commentBox.value;
     if (str && str.length)
@@ -236,7 +288,7 @@ fetchData().then(decodeNames).then(prepareData).then(createLookupDictionary).the
 const CITY_CODES = [
     ["NYC", "New York City, New York"],
     ["LA", "Los Angeles, California"],
-    ["NOLA", "New Orleans, Lousiana"],
+    ["NOLA", "New Orleans, Louisiana"],
     ["SF", "San Francisco, California"]
 ];
 /* These are commonly-used sub-country codes */
