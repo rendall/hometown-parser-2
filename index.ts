@@ -266,14 +266,32 @@ const syntax = (tokens: LocToken[]): LocationMeta[] => {
   return out
 }
 
-const displayInfo = (metas: LocationMeta[]) => {
+const locationSort = (a: LocationMeta, b: LocationMeta):number => {
+
+  const aCountry = isCountry(a)? a.name : a.country
+  const bCountry = isCountry(b)? b.name : b.country
+
+  const aRegion = isCountry(a)? "" : isRegion(a)? a.name : a.subcountry
+  const bRegion = isCountry(b)? "" : isRegion(b)? b.name : b.subcountry
+
+
+  const aCity = isCountry(a)? "" : isRegion(a)? "" : a.name
+  const bCity = isCountry(b)? "" : isRegion(b)? "" : b.name
+
+  return `${aCountry}${aRegion}${aCity}`.localeCompare(`${bCountry}${bRegion}${bCity}`)
+} 
+
+const displayInfo = (unsortedMetas: LocationMeta[]) => {
+  const metas = unsortedMetas.sort(locationSort)
   const newList = document.createElement("ul") as HTMLUListElement
   newList.setAttribute("id", "location-list")
   const header = document.createElement("li")
   header.textContent = metas.length === 0? "No locations detected" : "Detected locations:"
   newList.appendChild(header)
   const lis = metas.map(info => newList.appendChild(document.createElement("li")))
-  lis.forEach((li, i) => li.textContent = `${metas[i].name}${metas[i].hasOwnProperty("subcountry") ? ', ' + metas[i].subcountry : ''}${metas[i].hasOwnProperty("country") ? ', ' + metas[i].country : ''} `)
+  const text = (m:LocationMeta) => `${m.name}${m.hasOwnProperty("subcountry") ? ', ' + m.subcountry : ''}${m.hasOwnProperty("country") ? ', ' + m.country : ''} `
+  const names = metas.map( m => text(m))
+  lis.forEach((li, i) => li.textContent = names[i])
   document.body.appendChild(newList)
 }
 

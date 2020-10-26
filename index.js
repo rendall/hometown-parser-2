@@ -212,6 +212,7 @@ const syntax = (tokens) => {
     const out = appliedRules.reduce((acc, t) => [...acc, ...t.value], []);
     return out;
 };
+const locationSort = (a, b) => b.split("").reverse().join("").localeCompare(a.split("").reverse().join(""));
 const displayInfo = (metas) => {
     const newList = document.createElement("ul");
     newList.setAttribute("id", "location-list");
@@ -219,7 +220,9 @@ const displayInfo = (metas) => {
     header.textContent = metas.length === 0 ? "No locations detected" : "Detected locations:";
     newList.appendChild(header);
     const lis = metas.map(info => newList.appendChild(document.createElement("li")));
-    lis.forEach((li, i) => li.textContent = `${metas[i].name}${metas[i].hasOwnProperty("subcountry") ? ', ' + metas[i].subcountry : ''}${metas[i].hasOwnProperty("country") ? ', ' + metas[i].country : ''} `);
+    const text = (m) => `${m.name}${m.hasOwnProperty("subcountry") ? ', ' + m.subcountry : ''}${m.hasOwnProperty("country") ? ', ' + m.country : ''} `;
+    const names = metas.map(m => text(m)).sort(locationSort);
+    lis.forEach((li, i) => li.textContent = names[i]);
     document.body.appendChild(newList);
 };
 const onCommentBoxChange = (trie, memo) => () => {
