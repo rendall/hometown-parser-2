@@ -134,28 +134,30 @@ const lowestIndex = (ix: number[]) => ix[0]
  * Discard such tokens if there are no other relevant tokens
  */
 const removeConfusingSmallWordsRule: SyntaxRule = (tokens) => {
-  const smallConfusingWords = ["wa", "in", "of", "west", "east"]
+  const smallConfusingWords = ["west", "east"]
 
   // returns 'true' if t.index *is* a small, confusing word like "of"
-  // and 'false' if t.index is a region, like "Of, Trabazon, Turkey"
+  // and 'false' if t.index is a region, like "Of, Trabzon, Turkey"
   const isSmallConfusing = (t: LocToken) => {
-    if (!smallConfusingWords.includes(t.key)) return false
+    if (t.key.length > 3 && !smallConfusingWords.includes(t.key)) return false
     // all tokens except for 't'
     const excludeTokens = tokens.filter( to => to.key !== t.key)
     const allRegions = excludeTokens.filter(tok => tok !== t).reduce((acc: LocationMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isRegion).map(v => v.name)
     const allCountries = excludeTokens.filter(tok => tok !== t).reduce((acc: LocationMeta[], loc: LocToken) => [...acc, ...loc.value], []).filter(isCountry).map(v => v.name)
 
     switch (t.key) {
-      case "in":
-       if ( allRegions.includes("Indiana") ) return false
-       else return true
+      case "in":return !allRegions.includes("Indiana")
+
+      case "or": return !allRegions.includes("Oregon")
 
       case "of": 
         const isTurkey = allCountries.includes("Turkey") || allRegions.includes("Trabzon")
         return !isTurkey
 
+        // This is wrong. It will *remove* wa, when it should only remove "Wa, Ghana"
+        // It should be in a different rule
       case "wa":
-        const isGhana = allCountries.includes("Ghana")
+        const isGhana = allCountries.includes("Ghana") || allRegions.includes("Upper West")
         return !isGhana
 
       case "east":
@@ -265,12 +267,10 @@ const syntax = (tokens: LocToken[]): LocationMeta[] => {
 }
 
 const displayInfo = (metas: LocationMeta[]) => {
-  const locationList = document.querySelector("#location-list") as HTMLUListElement
-  if (locationList) locationList.remove()
   const newList = document.createElement("ul") as HTMLUListElement
   newList.setAttribute("id", "location-list")
   const header = document.createElement("li")
-  header.textContent = "Detected locations:"
+  header.textContent = metas.length === 0? "No locations detected" : "Detected locations:"
   newList.appendChild(header)
   const lis = metas.map(info => newList.appendChild(document.createElement("li")))
   lis.forEach((li, i) => li.textContent = `${metas[i].name}${metas[i].hasOwnProperty("subcountry") ? ', ' + metas[i].subcountry : ''}${metas[i].hasOwnProperty("country") ? ', ' + metas[i].country : ''} `)
@@ -279,7 +279,10 @@ const displayInfo = (metas: LocationMeta[]) => {
 
 const onCommentBoxChange = (trie: Trie, memo: { [key: string]: any }) => () => {
   const commentBox: HTMLTextAreaElement = document.querySelector("#comment-box") as HTMLTextAreaElement
+  const locationList = document.querySelector("#location-list") as HTMLUListElement
+  if (locationList) locationList.remove()
   const val = commentBox.value
+  if (val.trim() === "") return
   const tokens: LocToken[] = parseString(trie, val)
   const metas: LocationMeta[] = syntax(tokens)
   displayInfo(metas)
@@ -327,8 +330,18 @@ const decodeNames = (data: City[]) => data.map(c => ({ ...c, name: decodeURI(c.n
 //}
 const setupUI = (trie: Trie) => {
   const commentBox: HTMLTextAreaElement = document.querySelector("#comment-box") as HTMLTextAreaElement
+  const commentButton = document.querySelector("#comment-button") as HTMLButtonElement
   let memo: { [key: string]: any } = {}
-  commentBox.addEventListener("keyup", onCommentBoxChange(trie, memo))
+
+
+  
+  let tOut:number
+  const debounce = (ms:number = 500) => () => {
+    clearTimeout(tOut)
+    tOut = setTimeout(onCommentBoxChange(trie, memo), ms)
+  }
+  commentButton.addEventListener("click", debounce(0))
+  commentBox.addEventListener("keyup", debounce(500))
 
   // This line is in case there is a default message already in the Textarea comment box
   const str = commentBox.value
