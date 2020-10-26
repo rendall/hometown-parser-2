@@ -279,7 +279,7 @@ fetchData().then(decodeNames).then(prepareData).then(createLookupDictionary).the
 const CITY_CODES: [string, string][] = [
   ["NYC", "New York City, New York"],
   ["LA", "Los Angeles, California"],
-  ["NOLA", "New Orleans, Lousiana"],
+  ["NOLA", "New Orleans, Louisiana"],
   ["SF", "San Francisco, California"]
 ]
 
