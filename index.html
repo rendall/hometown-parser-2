@@ -65,7 +65,7 @@
     <label for="toggle-examples">Show examples</label>
     <input type="checkbox" id="toggle-examples" name="toggle-examples" class="toggle-examples-input">
     <ul class="examples">
-      <li>Here are examples of the kind of paragraph that might be entered above</li>
+      <li>Here are examples of the kind of paragraph that might be entered above. They are not always successful in order to highlight the limitations of this approach</li>
       <li><a href="#">Seattle and Vancouver, BC.</a></li>
       <li><a href="#">New York and Paris</a></li>
       <li><a href="#">West Coast U.S.A./ Canada</a></li>
@@ -92,7 +92,7 @@
 
     const onAClick = (e) => {
       const textarea = document.querySelector("textarea#comment-box")
-      const value = e.target.outerText
+      const value = e.target.innerText
       textarea.value = value
 
       var evt = new KeyboardEvent('keyup')
@@ -101,7 +101,6 @@
       const exampleToggle = document.querySelector("input#toggle-examples")
       exampleToggle.dispatchEvent(new MouseEvent('click'))
 
-      showRandom3()
     }
 
     const showRandom3 = () => {
@@ -115,7 +114,6 @@
     const as = Array.from(document.querySelectorAll("ul.examples li a"))
     as.forEach(a => a.addEventListener("click", onAClick))
 
-    showRandom3()
   </script>
 </body>
 </html>
