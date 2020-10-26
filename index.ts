@@ -77,7 +77,6 @@ const parseString = (trie: Trie, str: string, words?: string[], startIndex: numb
   if (!words) {
     const val = cleanString(str.toLowerCase())
     const expanded = val.split(" ").map(word => expandAbbreviation(word))
-    console.clear()
     console.info(`Input string "${str}" is normalized to "${val}"`)
     return parseString(trie, str, expanded, startIndex, endIndex)
   }
